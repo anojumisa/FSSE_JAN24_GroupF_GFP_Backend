@@ -10,7 +10,7 @@ import bcrypt
 class Stores(Base, UserMixin):
     __tablename__ = 'store'
 
-    store_id = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id = mapped_column(Integer, primary_key=True, autoincrement=True)
     seller_full_name = mapped_column(String(50), nullable=False)
     email = mapped_column(String(100), nullable=False)
     password_hash = mapped_column(String(100), nullable=False)
