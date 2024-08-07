@@ -10,22 +10,22 @@ import bcrypt
 class User(Base, UserMixin):
     __tablename__ = 'users'
 
-    user_id = mapped_column(Integer, primary_key=True, autoincrement=True)
+    id = mapped_column(Integer, primary_key=True, autoincrement=True)
     username = mapped_column(String(50), nullable=False)
-    email = mapped_column(String(100), nullable=False)
+    email = mapped_column(String(100), nullable=False, unique=True)
     password_hash = mapped_column(String(255), nullable=False)
     first_name = mapped_column(String(50), nullable=False)
     last_name = mapped_column(String(50), nullable=False)
-    address = mapped_column(String(255), nullable=False)
-    city = mapped_column(String(100), nullable=False)
-    state = mapped_column(String(100), nullable=False)
-    zip_code = mapped_column(String(20), nullable=False)
-    image_url = mapped_column(String(255), nullable=False)
+    address = mapped_column(String(255), nullable=True)
+    city = mapped_column(String(100), nullable=True)
+    state = mapped_column(String(100), nullable=True)
+    zip_code = mapped_column(String(20), nullable=True)
+    image_url = mapped_column(String(255), nullable=True)
     created_at = mapped_column(DateTime(timezone=True), server_default=func.now())
     updated_at = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.current_timestamp())
 
-    def set_password(self, password_hash):
-        self.password_hash = bcrypt.hashpw(password_hash.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+    def set_password(self, password):
+        self.password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
-    def check_password(self, password_hash):
-        return bcrypt.checkpw(password_hash.encode('utf-8'), self.password_hash.encode('utf-8'))
+    def check_password(self, password):
+        return bcrypt.checkpw(password.encode('utf-8'), self.password_hash.encode('utf-8'))

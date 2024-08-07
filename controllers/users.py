@@ -1,80 +1,143 @@
-from flask import Blueprint, request
-
-from connectors.mysql_connector import connection
-from sqlalchemy.orm import sessionmaker
+from flask import Blueprint, jsonify, make_response, request
+from connectors.mysql_connector import engine
 from models.users import User
-
-from flask_login import login_user, logout_user, login_required
-
-
+from sqlalchemy.orm import sessionmaker
+from flask_login import login_user, login_required, logout_user, current_user
 
 user_routes = Blueprint("user_routes", __name__)
+Session = sessionmaker(bind=engine)
 
 @user_routes.route('/register', methods=['POST'])
 def register_user():
-    Session = sessionmaker(connection)
-    s = Session()
+    session = Session()
 
-    s.begin()
     try:
-        NewUser = User(
-            user_id=request.form['user_id'],
-            username=request.form['username'],
-            email=request.form['email'],
-            password_hash=request.form['password_hash'],
-            first_name=request.form['first_name'],
-            last_name=request.form['last_name'],
-            address=request.form['address'],
-            city=request.form['city'],
-            state=request.form['state'],
-            zip_code=request.form['zip_code'],
-            image_url=request.form['image_url']
+        data = request.get_json()
+        if not data or not isinstance(data, dict):
+            return jsonify({"message": "Invalid data provided"}), 400
+
+        required_fields = [
+            'username', 'email', 'password_hash',
+            'first_name', 'last_name', 'address', 'city',
+            'state', 'zip_code', 'image_url'
+        ]
+
+        for field in required_fields:
+            if field not in data:
+                return jsonify({"message": f"{field.replace('_', ' ').title()} is required"}), 400
+
+        new_user = User(
+            username=data['username'],
+            email=data['email'],
+            first_name=data['first_name'],
+            last_name=data['last_name'],
+            address=data['address'],
+            city=data['city'],
+            state=data['state'],
+            zip_code=data['zip_code'],
+            image_url=data['image_url']
         )
 
-        NewUser.set_password(request.form['password_hash'])
+        new_user.set_password(data['password_hash'])
 
-        s.add(NewUser)
-        s.commit()
+        session.add(new_user)
+        session.commit()
+        return jsonify({"message": "Register Success"}), 200
+
     except Exception as e:
-        s.rollback()
-        print(f"Exception:{e}")
-        return { "message": "Fail to Register"}, 500
-    
-    return { "message": "Register Success" }, 200
+        session.rollback()
+        print(f"Exception: {e}")
+        return jsonify({"message": "Failed to Register"}), 500
+
+    finally:
+        session.close()
 
 @user_routes.route('/login', methods=['POST'])
 def check_login():
-    Session = sessionmaker(connection)
-    s = Session()
+    session = Session()
 
-    s.begin()
     try:
-        email = request.form['email']
-        user = s.query(User).filter(User.email == email).first()
+        data = request.get_json()
+        if not data or 'email' not in data or 'password_hash' not in data:
+            return jsonify({"message": "Invalid credentials"}), 400
 
-        if user == None:
-            return { "message": "User not found" }, 403
-        
-        if not user.check_password(request.form['password']):
-            return { "message": "Invalid password" }, 403
-        
-        
+        user = session.query(User).filter(User.email == data['email']).first()
+
+        if not user or not user.check_password(data['password_hash']):
+            return jsonify({"message": "Invalid email or password_hash"}), 403
+
         login_user(user)
-
-        # Get Session ID
-        session_id = request.cookies.get('session')
-
-        return {
-            "session_id": session_id,
-            "message": "Login Success"
-        }, 200
+        return jsonify({"message": "Login Success"}), 200
 
     except Exception as e:
-        s.rollback()
-        return { "message": "Login Failed" }, 500
-    
+        print(e)
+        session.rollback()
+        return jsonify({"message": "Login Failed"}), 500
+
+    finally:
+        session.close()
+
+@user_routes.route('/profile', methods=['GET'])
+@login_required
+def get_user_profile():
+    return jsonify({ 
+        "id": current_user.id,
+        "username": current_user.username,
+        "email": current_user.email,
+        "first_name": current_user.first_name,
+        "last_name": current_user.last_name,
+        "address": current_user.address,
+        "city": current_user.city,
+        "state": current_user.state,
+        "zip_code": current_user.zip_code,
+        "image_url": current_user.image_url
+    })
+
+@user_routes.route('/profile', methods=['PUT'])
+@login_required
+def update_user_profile():
+    session = Session()
+
+    try:
+        data = request.get_json()
+        if not data or not isinstance(data, dict):
+            return jsonify({"message": "Invalid data provided"}), 400
+
+        required_fields = [
+            'first_name', 'last_name', 'address', 'city',
+            'state', 'zip_code', 'image_url'
+        ]
+
+        for field in required_fields:
+            if field not in data:
+                return jsonify({"message": f"{field.replace('_', ' ').title()} is required"}), 400
+
+        user = session.query(User).filter(User.id == current_user.id).first()
+
+        if not user:
+            return jsonify({"message": "User not found"}), 404
+
+        user.first_name = data['first_name']
+        user.last_name = data['last_name']
+        user.address = data['address']
+        user.city = data['city']
+        user.state = data['state']
+        user.zip_code = data['zip_code']
+        user.image_url = data['image_url']
+
+        session.commit()
+        return jsonify({"message": "Update Success"}), 200
+
+    except Exception as e:
+        print(e)
+        session.rollback()
+        return jsonify({"message": "Update Failed"}), 500
+
+    finally:
+        session.close()
+
 @user_routes.route('/logout', methods=['GET'])
 @login_required
 def user_logout():
     logout_user()
-    return { "message": "Logout Success" }
+    return jsonify({"message": "Logout Success"})
