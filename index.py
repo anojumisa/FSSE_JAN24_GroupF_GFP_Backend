@@ -7,7 +7,6 @@ from sqlalchemy.orm import sessionmaker
 
 from controllers.stores import store_routes
 from controllers.users import user_routes
-from controllers.product_categories import category_routes
 import os
 
 from flask_login import LoginManager
@@ -22,7 +21,6 @@ CORS(app, supports_credentials=True, origins=['http://localhost:3000'])
 
 app.register_blueprint(store_routes)
 app.register_blueprint(user_routes)
-app.register_blueprint(category_routes)
 
 
 login_manager = LoginManager()

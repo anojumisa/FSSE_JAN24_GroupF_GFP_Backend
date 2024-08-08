@@ -18,13 +18,5 @@ class Products(Base):
     store_id = Column(Integer, ForeignKey('store.id'), nullable=False)
     store = relationship("Stores", back_populates="products")
 
-    categories = relationship("ProductCategory",  back_populates="products")
 
-class ProductCategory(Base):
-    __tablename__ = 'product_categories'
 
-    id = Column(Integer, primary_key=True, autoincrement=True)
-    name = Column(String(100), nullable=False, unique=True)
-    description = Column(String(255))
-
-    products = relationship("Product", back_populates="categories")
