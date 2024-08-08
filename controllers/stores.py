@@ -1,6 +1,7 @@
 from flask import Blueprint, make_response, request
 from connectors.mysql_connector import connection, engine
 from models.stores import Stores
+from models.products import Products
 
 from sqlalchemy.orm import sessionmaker
 
@@ -92,7 +93,7 @@ def check_login():
 @store_routes.route('/stores/me', methods=['PUT'])
 @login_required
 def update_store():
-    Session = sessionmaker(connection)
+    Session = sessionmaker(bind=engine)  # Ensure you are binding the engine here
     s = Session()
     s.begin()
     
@@ -102,18 +103,20 @@ def update_store():
         if not store:
             return {"message": "Store not found"}, 404
 
-        store.store_name=request.form['store_name'],
-        store.description=request.form['description'],
-        store.image_url=request.form['image_url'],
-        store.seller_full_name=request.form['seller_full_name'],            
-        store.username=request.form['username'],
-        store.email=request.form['email'],
-        store.bank_account=request.form['bank_account'],
-        store.contact_number=request.form['contact_number'],
-        store.address=request.form['address'],
-        store.city=request.form['city'],
-        store.state=request.form['state'],
-        store.zip_code=request.form['zip_code']
+        data = request.json  # Access the JSON data from the request
+
+        store.store_name = data['store_name']
+        store.description = data['description']
+        store.image_url = data['image_url']
+        store.seller_full_name = data['seller_full_name']            
+        store.username = data['username']
+        store.email = data['email']
+        store.bank_account = data['bank_account']
+        store.contact_number = data['contact_number']
+        store.address = data['address']
+        store.city = data['city']
+        store.state = data['state']
+        store.zip_code = data['zip_code']
         
         s.commit()
         return {"message": "Update user data success"}, 200
@@ -121,10 +124,39 @@ def update_store():
     except Exception as e:
         print(str(e))
         s.rollback()
-        return { "message": "Update Failed", 'error': str(e)}, 500
+        return {"message": "Update Failed", "error": str(e)}, 500
+
 
 @store_routes.route('/store_logout', methods=['GET'])
 @login_required
 def user_logout():
     logout_user()
     return { "message": "Logout Success" }
+
+@store_routes.route('/products', methods=['POST'])
+@login_required
+def add_product():
+    Session = sessionmaker(bind=engine)
+    s = Session()
+    s.begin()
+
+    try:
+        data = request.json
+        new_product = Products(
+            name=data['name'],
+            description=data.get('description', ''),
+            price=data['price'],
+            stock_quantity=data['stock_quantity'],
+            image_url=data.get('image_url', ''),
+            location=data.get('location', ''),
+            store_id=current_user.id  # Link the product to the current logged-in store
+        )
+        
+        s.add(new_product)
+        s.commit()
+        return {"message": "Product added successfully"}, 201
+
+    except Exception as e:
+        s.rollback()
+        print(f"Exception: {e}")
+        return {"message": "Failed to add product", "error": str(e)}, 500
