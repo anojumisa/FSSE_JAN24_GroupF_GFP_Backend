@@ -1,4 +1,4 @@
-from flask import Blueprint, make_response, request
+from flask import Blueprint, jsonify, make_response, request
 from connectors.mysql_connector import connection, engine
 from models.stores import Stores
 from models.products import Products
@@ -15,25 +15,44 @@ def register_seller():
     s = Session()
     s.begin()
 
+    data = request.get_json()
+    if data is None or not isinstance(data, dict):
+        return jsonify({"message": "Invalid data provided"}), 400
+
+    required_fields = [
+        'seller_full_name', 'username', 'email', 'store_name',
+        'description', 'bank_account', 'contact_number', 'image_url',
+        'address', 'city', 'state', 'zip_code', 'password_hash'
+    ]
+
+    for field in required_fields:
+        if field not in data:
+            return jsonify({"message": f"{field.replace('_', ' ').title()} is required"}), 400
+
     try:
-                
+
+        data = request.get_json()
+             
         NewSeller = Stores(
-            seller_full_name=request.form['seller_full_name'],            
-            username=request.form['username'],
-            email=request.form['email'],
-            store_name=request.form['store_name'],
-            description=request.form['description'],
-            bank_account=request.form['bank_account'],
-            contact_number=request.form['contact_number'],
-            image_url=request.form['image_url'],
-            address=request.form['address'],
-            city=request.form['city'],
-            state=request.form['state'],
-            zip_code=request.form['zip_code']
+            seller_full_name=data.get('seller_full_name'),
+            username=data.get('username'),
+            email=data.get('email'),
+            store_name=data.get('store_name'),
+            description=data.get('description'),
+            bank_account=data.get('bank_account'),
+            contact_number=data.get('contact_number'),
+            image_url=data.get('image_url'),
+            address=data.get('address'),
+            city=data.get('city'),
+            state=data.get('state'),
+            zip_code=data.get('zip_code')           
         )
         
-        NewSeller.set_password(request.form['password_hash'])
-
+        password_hash = data.get('password_hash')
+        if password_hash is None:
+            raise ValueError("Password cannot be None")
+        NewSeller.set_password(password_hash)
+        
         s.add(NewSeller)
         s.commit()
 
