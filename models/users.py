@@ -13,7 +13,7 @@ class User(Base, UserMixin):
     id = mapped_column(Integer, primary_key=True, autoincrement=True)
     username = mapped_column(String(50), nullable=False)
     email = mapped_column(String(100), nullable=False, unique=True)
-    password_hash = mapped_column(String(255), nullable=False)
+    password = mapped_column(String(255), nullable=False)
     first_name = mapped_column(String(50), nullable=False)
     last_name = mapped_column(String(50), nullable=False)
     address = mapped_column(String(255), nullable=True)
@@ -25,7 +25,7 @@ class User(Base, UserMixin):
     updated_at = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.current_timestamp())
 
     def set_password(self, password):
-        self.password_hash = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
+        self.password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
 
     def check_password(self, password):
-        return bcrypt.checkpw(password.encode('utf-8'), self.password_hash.encode('utf-8'))
+        return bcrypt.checkpw(password.encode('utf-8'), self.password.encode('utf-8'))
