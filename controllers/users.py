@@ -17,7 +17,7 @@ def register_user():
             return jsonify({"message": "Invalid data provided"}), 400
 
         required_fields = [
-            'username', 'email', 'password_hash',
+            'username', 'email', 'password',
             'first_name', 'last_name', 'address', 'city',
             'state', 'zip_code', 'image_url'
         ]
@@ -27,18 +27,19 @@ def register_user():
                 return jsonify({"message": f"{field.replace('_', ' ').title()} is required"}), 400
 
         new_user = User(
-            username=data['username'],
-            email=data['email'],
-            first_name=data['first_name'],
-            last_name=data['last_name'],
-            address=data['address'],
-            city=data['city'],
-            state=data['state'],
-            zip_code=data['zip_code'],
-            image_url=data['image_url']
+            username=data.get('username'),
+            email=data.get('email'),
+            first_name=data.get('first_name'),
+            last_name=data.get('last_name'),
+            address=data.get('address'),
+            city=data.get('city'),
+            state=data.get('state'),
+            zip_code=data.get('zip_code'),
+            image_url=data.get('image_url')
         )
 
-        new_user.set_password(data['password_hash'])
+        password = data.get('password')
+        new_user.set_password(password)
 
         session.add(new_user)
         session.commit()
@@ -58,13 +59,13 @@ def check_login():
 
     try:
         data = request.get_json()
-        if not data or 'email' not in data or 'password_hash' not in data:
+        if not data or 'email' not in data or 'password' not in data:
             return jsonify({"message": "Invalid credentials"}), 400
 
         user = session.query(User).filter(User.email == data['email']).first()
 
-        if not user or not user.check_password(data['password_hash']):
-            return jsonify({"message": "Invalid email or password_hash"}), 403
+        if not user or not user.check_password(data['password']):
+            return jsonify({"message": "Invalid email or password"}), 403
 
         login_user(user)
         return jsonify({"message": "Login Success"}), 200
