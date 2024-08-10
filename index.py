@@ -10,6 +10,7 @@ from controllers.users import user_routes
 from controllers.category import category_routes
 from controllers.product_category import product_routes
 from controllers.cart import cart_routes
+from controllers.order import order_routes
 
 import os
 
@@ -29,6 +30,7 @@ app.register_blueprint(user_routes)
 app.register_blueprint(category_routes)
 app.register_blueprint(product_routes)
 app.register_blueprint(cart_routes)
+app.register_blueprint(order_routes)
 
 login_manager = LoginManager()
 login_manager.init_app(app)
