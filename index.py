@@ -9,6 +9,7 @@ from controllers.stores import store_routes
 from controllers.users import user_routes
 from controllers.category import category_routes
 from controllers.product_category import product_routes
+from controllers.cart import cart_routes
 
 import os
 
@@ -27,22 +28,23 @@ app.register_blueprint(store_routes)
 app.register_blueprint(user_routes)
 app.register_blueprint(category_routes)
 app.register_blueprint(product_routes)
+app.register_blueprint(cart_routes)
 
 login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'user_routes.check_login'
 
-# @login_manager.user_loader
-# def load_user(user_id):
-#     Session = sessionmaker(connection)
-#     s = Session()
-#     return s.query(Stores).get(int(user_id))
+@login_manager.user_loader
+def load_user(user_id):
+    Session = sessionmaker(connection)
+    s = Session()
+    return s.query(Stores).get(int(user_id))
 
-# @login_manager.user_loader
-# def load_user(user_id):
-#     Session = sessionmaker(connection)
-#     s = Session()
-#     return s.query(User).get(int(user_id))
+@login_manager.user_loader
+def load_user(user_id):
+    Session = sessionmaker(connection)
+    s = Session()
+    return s.query(User).get(int(user_id))
 
 @login_manager.unauthorized_handler
 def unauthorized():
