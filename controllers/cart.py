@@ -11,6 +11,42 @@ from flask_login import current_user, login_required
 
 cart_routes = Blueprint('cart_routes', __name__)
 
+@cart_routes.route('/cart', methods=['GET'])
+@login_required
+def get_cart():
+    Session = sessionmaker(bind=engine)
+    session = Session()
+
+    try:
+        # Ensure the user has a cart
+        cart = session.query(Cart).filter_by(user_id=current_user.id).first()
+        if not cart:
+            return jsonify({"message": "Cart is empty"}), 200
+
+        # Fetch all items in the cart
+        cart_items = session.query(CartItem).filter_by(cart_id=cart.id).all()
+        items = []
+        for item in cart_items:
+            product = session.query(Products).filter_by(product_id=item.product_id).first()
+            items.append({
+                "product_id": item.product_id,
+                "product_name": product.name,
+                "quantity": item.quantity,
+                "price": product.price,
+                "total_price": item.quantity * product.price
+            })
+
+        return jsonify({"cart_items": items}), 200
+
+    except SQLAlchemyError as e:
+        session.rollback()
+        print(f"Error: {str(e)}")
+        return jsonify({"message": "Failed to retrieve cart items", "error": str(e)}), 500
+    finally:
+        session.close()
+
+
+
 @cart_routes.route('/cart/add', methods=['POST'])
 @login_required
 def add_to_cart():
@@ -166,3 +202,91 @@ def remove_cart_item():
         return jsonify({"message": "Failed to remove cart item", "error": str(e)}), 500
     finally:
         session.close()
+
+@cart_routes.route('/cart/checkout', methods=['POST'])
+@login_required
+def checkout_cart():
+    Session = sessionmaker(bind=engine)
+    session = Session()
+
+    try:
+        # Ensure the user has a cart
+        cart = session.query(Cart).filter_by(user_id=current_user.id).first()
+        if not cart:
+            return jsonify({"message": "Cart is empty"}), 200
+
+        # Fetch all items in the cart
+        cart_items = session.query(CartItem).filter_by(cart_id=cart.id).all()
+        items = []
+        for item in cart_items:
+            product = session.query(Products).filter_by(product_id=item.product_id).first()
+            items.append({
+                "product_id": item.product_id,
+                "product_name": product.name,
+                "quantity": item.quantity,
+                "price": product.price,
+                "total_price": item.quantity * product.price
+            })
+
+        return jsonify({"cart_items": items}), 200
+
+    except SQLAlchemyError as e:    
+        session.rollback()
+        print(f"Error: {str(e)}")
+        return jsonify({"message": "Failed to checkout cart", "error": str(e)}), 500
+    finally:
+        session.close()
+
+@cart_routes.route('/cart/clear', methods=['DELETE'])
+@login_required
+def clear_cart():
+    Session = sessionmaker(bind=engine)
+    session = Session()
+
+    try:
+        # Ensure the user has a cart
+        cart = session.query(Cart).filter_by(user_id=current_user.id).first()
+        if not cart:
+            return jsonify({"message": "Cart is empty"}), 200
+
+        # Remove all items from the cart
+        session.query(CartItem).filter_by(cart_id=cart.id).delete()
+        session.commit()
+
+        return jsonify({"message": "Cart cleared successfully"}), 200
+
+    except SQLAlchemyError as e:
+        session.rollback()
+        print(f"Error: {str(e)}")
+        return jsonify({"message": "Failed to clear cart", "error": str(e)}), 500
+    finally:
+        session.close()
+
+@cart_routes.route('/cart/total', methods=['GET'])
+@login_required
+def get_cart_total():
+    Session = sessionmaker(bind=engine)
+    session = Session()
+
+    try:
+        # Ensure the user has a cart
+        cart = session.query(Cart).filter_by(user_id=current_user.id).first()
+        if not cart:
+            return jsonify({"message": "Cart is empty"}), 200
+
+        # Fetch all items in the cart
+        cart_items = session.query(CartItem).filter_by(cart_id=cart.id).all()
+        total = 0
+        for item in cart_items:
+            total += item.quantity * item.product.price
+
+        return jsonify({"total": total}), 200
+
+    except SQLAlchemyError as e:
+        session.rollback()
+        print(f"Error: {str(e)}")
+        return jsonify({"message": "Failed to get cart total", "error": str(e)}), 500
+    finally:
+        session.close()
+
+        
