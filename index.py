@@ -7,6 +7,9 @@ from sqlalchemy.orm import sessionmaker
 
 from controllers.stores import store_routes
 from controllers.users import user_routes
+from controllers.category import category_routes
+from controllers.product_category import product_routes
+
 import os
 
 from flask_login import LoginManager
@@ -20,9 +23,10 @@ app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
 
 CORS(app, supports_credentials=True, origins=['http://localhost:3000'])
 
-
 app.register_blueprint(store_routes)
 app.register_blueprint(user_routes)
+app.register_blueprint(category_routes)
+app.register_blueprint(product_routes)
 
 login_manager = LoginManager()
 login_manager.init_app(app)

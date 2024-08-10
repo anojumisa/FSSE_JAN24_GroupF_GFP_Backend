@@ -2,7 +2,7 @@ from models.base import Base
 
 from sqlalchemy.sql import func
 from sqlalchemy import Integer, String, DateTime
-from sqlalchemy.orm import mapped_column
+from sqlalchemy.orm import mapped_column, relationship
 from flask_login import UserMixin
 
 import bcrypt
@@ -31,3 +31,5 @@ class Stores(Base, UserMixin):
 
     def check_password(self, password_hash):
         return bcrypt.checkpw(password_hash.encode('utf-8'), self.password_hash.encode('utf-8'))
+    
+    products = relationship("Products", back_populates="store", cascade="all, delete-orphan")
