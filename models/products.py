@@ -38,3 +38,4 @@ class Products(Base):
     store_id = Column(Integer, ForeignKey('store.id'), nullable=False)
     store = relationship("Stores", back_populates="products")
     categories = relationship('ProductCategory', back_populates='product')
+    order_items = relationship('OrderItem', back_populates='product')
