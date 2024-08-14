@@ -23,6 +23,11 @@ load_dotenv()
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
 
+app.config['SESSION_COOKIE_SECURE'] = True  # Ensure cookies are only sent over HTTPS
+app.config['SESSION_COOKIE_HTTPONLY'] = True  # Prevent JavaScript access
+app.config['SESSION_COOKIE_PATH'] = '/'  # Available site-wide
+app.config['SESSION_COOKIE_DOMAIN'] = None  # Adjust if necessary (e.g., 'yourdomain.com')
+
 CORS(app, supports_credentials=True, origins=['http://localhost:3000'])
 
 app.register_blueprint(store_routes)
@@ -36,11 +41,11 @@ login_manager = LoginManager()
 login_manager.init_app(app)
 login_manager.login_view = 'user_routes.check_login'
 
-@login_manager.user_loader
-def load_user(user_id):
-    Session = sessionmaker(connection)
-    s = Session()
-    return s.query(Stores).get(int(user_id))
+# @login_manager.user_loader
+# def load_user(user_id):
+#     Session = sessionmaker(connection)
+#     s = Session()
+#     return s.query(Stores).get(int(user_id))
 
 @login_manager.user_loader
 def load_user(user_id):

@@ -1,6 +1,7 @@
-from flask import Blueprint, jsonify, make_response, request
+from flask import Blueprint, jsonify, request
 from connectors.mysql_connector import engine
 from models.users import User
+from models.order import Order 
 from sqlalchemy.orm import sessionmaker
 from flask_login import login_user, login_required, logout_user, current_user
 
@@ -78,21 +79,50 @@ def check_login():
     finally:
         session.close()
 
-@user_routes.route('/profile', methods=['GET'])
+@user_routes.route('/user/dashboard', methods=['GET'])
 @login_required
-def get_user_profile():
-    return jsonify({ 
-        "id": current_user.id,
-        "username": current_user.username,
-        "email": current_user.email,
-        "first_name": current_user.first_name,
-        "last_name": current_user.last_name,
-        "address": current_user.address,
-        "city": current_user.city,
-        "state": current_user.state,
-        "zip_code": current_user.zip_code,
-        "image_url": current_user.image_url
-    })
+def get_user_dashboard_data():
+    session = Session()
+
+    try:
+        user = session.query(User).filter_by(id=current_user.id).first()
+
+        if not user:
+            return jsonify({"message": "User not found"}), 404
+
+       
+        transactions = session.query(Order).filter_by(user_id=current_user.id).all()
+
+        
+        data = {
+            "user": {
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "email": user.email,
+                "address": user.address,
+                "city": user.city,
+                "state": user.state,
+                "zip_code": user.zip_code
+            },
+            "transactions": [
+                {
+                    "id": transaction.id,
+                    "total": transaction.total,
+                    "payment_method": transaction.payment_method,
+                    "status": transaction.status,
+                    "created_at": transaction.created_at
+                } for transaction in transactions
+            ]
+        }
+        return jsonify(data), 200
+
+    except Exception as e:
+        print(f"Error: {e}")
+        session.rollback()
+        return jsonify({"message": "Failed to fetch user data"}), 500
+
+    finally:
+        session.close()
 
 @user_routes.route('/profile', methods=['PUT'])
 @login_required
