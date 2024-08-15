@@ -7,7 +7,7 @@ from sqlalchemy.orm import relationship
 class Category(Base):
     __tablename__ = 'categories'
 
-    category_id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(100), nullable=False, unique=True)
     description = Column(String(255), nullable=True)
     store_id = Column(Integer, ForeignKey('store.id'), nullable=False)
@@ -17,8 +17,8 @@ class Category(Base):
 class ProductCategory(Base):
     __tablename__ = 'product_categories'
 
-    product_id = Column(Integer, ForeignKey('products.product_id'), primary_key=True)
-    category_id = Column(Integer, ForeignKey('categories.category_id'), primary_key=True)
+    id = Column(Integer, ForeignKey('products.id'), primary_key=True)
+    category_id = Column(Integer, ForeignKey('categories.id'), primary_key=True)
     product = relationship('Products', back_populates='categories')
     category = relationship('Category', back_populates='products')
 
@@ -26,7 +26,7 @@ class ProductCategory(Base):
 class Products(Base):
     __tablename__ = 'products'
 
-    product_id = Column(Integer, primary_key=True, autoincrement=True)
+    id = Column(Integer, primary_key=True, autoincrement=True)
     name = Column(String(100), nullable=False)
     description = Column(Text)
     price = Column(Numeric(10, 2), nullable=False)

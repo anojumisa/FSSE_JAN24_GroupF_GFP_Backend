@@ -15,6 +15,7 @@ from controllers.order import order_routes
 import os
 
 from flask_login import LoginManager
+from flask_jwt_extended import JWTManager
 from models.stores import Stores
 from models.users import User
 
@@ -22,6 +23,8 @@ load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+
+jwt = JWTManager(app)
 
 CORS(app, supports_credentials=True, origins=['http://localhost:3000'])
 
