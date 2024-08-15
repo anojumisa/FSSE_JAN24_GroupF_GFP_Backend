@@ -65,52 +65,6 @@ def register_seller():
     return { "message": "Register Success" }, 200
 
 @store_routes.route('/store_login', methods=['POST'])
-def check_login():
-    Session = sessionmaker(bind=engine)
-    s = Session()
-    s.begin()
-
-    try:
-
-        print(f"Request Headers: {request.headers}")
-        print(f"Request Data: {request.data}")
-
-        data = request.json 
-        email = data['email']
-        password_hash = data['password_hash']
-
-        print(f"Received email: {email}")
-        print(f"Received password_hash: {password_hash}") 
-
-        store = s.query(Stores).filter(Stores.email == email).first()       
-
-        if store == None:
-            return { "message": "Store not found" }, 403
-        
-        if not store.check_password(password_hash):
-            return { "message": "Wrong password" }, 403
-        
-        login_user(store)
-
-        session_id = request.cookies.get('session')
-
-        print(f"Session ID: {session_id}")
-
-        session_id = "your_generated_session_id"  # You should generate this
-        response = make_response({
-            "session_id": session_id,
-            "message": "Login Successful"
-        }, 200)
-        response.set_cookie('session', session_id, httponly=True, secure=False, samesite='Lax')  # Set secure to True in production
-
-        return response
-
-    except Exception as e:
-        s.rollback()
-        print(f"Exception: {e}")
-        return { "message": "Login Failed" }, 500
-
-@store_routes.route('/loginjwt', methods=['POST'])
 def check_login_jwt():
     Session = sessionmaker(bind=engine)
     s = Session()
@@ -177,7 +131,7 @@ def update_store():
         return {"message": "Update Failed", "error": str(e)}, 500
 
 
-@store_routes.route('/store_logout', methods=['GET'])
+@store_routes.route('/store_logout', methods=['POST'])
 # @login_required
 @jwt_required()
 def user_logout():
