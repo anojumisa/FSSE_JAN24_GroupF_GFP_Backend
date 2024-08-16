@@ -139,16 +139,49 @@ def user_logout():
     return { "message": "Logout Success" }
 
 @store_routes.route('/products', methods=['POST'])
-# @login_required
 @jwt_required()
 def add_product():
     Session = sessionmaker(bind=engine)
     s = Session()
     s.begin()
-
+    
     try:
-
         data = request.json
+        print(f"Received data: {data}")  # Log the incoming request data
+
+        if not data:
+            return jsonify({"message": "No input data provided"}), 400
+
+        # Required fields
+        required_fields = ['name', 'price', 'stock_quantity']
+        for field in required_fields:
+            if field not in data:
+                print(f"Missing required field: {field}")  # Log missing field
+                return jsonify({"message": f"'{field}' is a required field"}), 422
+
+        # Validate data types
+        if not isinstance(data['name'], str) or len(data['name']) > 100:
+            print(f"Invalid data type or length for 'name': {data['name']}")  # Log invalid type or length
+            return jsonify({"message": "'name' must be a string with a maximum length of 100 characters"}), 422
+        if not isinstance(data['price'], (int, float)):
+            print(f"Invalid data type for 'price': {type(data['price'])}")  # Log invalid type
+            return jsonify({"message": "'price' must be a number"}), 422
+        if not isinstance(data['stock_quantity'], int):
+            print(f"Invalid data type for 'stock_quantity': {type(data['stock_quantity'])}")  # Log invalid type
+            return jsonify({"message": "'stock_quantity' must be an integer"}), 422
+
+        # Validate optional fields
+        if 'image_url' in data and len(data['image_url']) > 255:
+            print(f"Invalid length for 'image_url': {data['image_url']}")  # Log invalid length
+            return jsonify({"message": "'image_url' must be a string with a maximum length of 255 characters"}), 422
+        if 'location' in data and len(data['location']) > 255:
+            print(f"Invalid length for 'location': {data['location']}")  # Log invalid length
+            return jsonify({"message": "'location' must be a string with a maximum length of 255 characters"}), 422
+
+        # Extract and log store_id
+        store_id = get_jwt_identity()
+        print(f"Store ID from JWT: {store_id}")
+
         new_product = Products(
             name=data['name'],
             description=data.get('description', ''),
@@ -156,17 +189,17 @@ def add_product():
             stock_quantity=data['stock_quantity'],
             image_url=data.get('image_url', ''),
             location=data.get('location', ''),
-            store_id = get_jwt_identity()
+            store_id=get_jwt_identity()
         )
-        
         s.add(new_product)
         s.commit()
-        return {"message": "Product added successfully"}, 201
+        return jsonify({"message": "Product added successfully"}), 201
 
     except Exception as e:
+        print(str(e))
         s.rollback()
-        print(f"Exception: {e}")
-        return {"message": "Failed to add product", "error": str(e)}, 500
+        return {"message": "Update Failed", "error": str(e)}, 500
+    
 
 @store_routes.route('/products', methods=['GET'])
 @jwt_required()
