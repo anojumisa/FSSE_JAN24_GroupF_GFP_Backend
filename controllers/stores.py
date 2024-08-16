@@ -4,8 +4,6 @@ from models.stores import Stores
 from models.products import Products
 
 from sqlalchemy.orm import sessionmaker
-
-from flask_login import login_user, login_required, logout_user, current_user
 from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 
 store_routes = Blueprint("store_routes", __name__)
@@ -31,9 +29,6 @@ def register_seller():
             return jsonify({"message": f"{field.replace('_', ' ').title()} is required"}), 400
 
     try:
-
-        data = request.get_json()
-             
         NewSeller = Stores(
             seller_full_name=data.get('seller_full_name'),
             username=data.get('username'),
@@ -46,12 +41,10 @@ def register_seller():
             address=data.get('address'),
             city=data.get('city'),
             state=data.get('state'),
-            zip_code=data.get('zip_code')           
+            zip_code=data.get('zip_code')
         )
         
         password_hash = data.get('password_hash')
-        if password_hash is None:
-            raise ValueError("Password cannot be None")
         NewSeller.set_password(password_hash)
         
         s.add(NewSeller)
@@ -60,7 +53,7 @@ def register_seller():
     except Exception as e:
         print(e)
         s.rollback()
-        return { "message": "Register Failed"}, 500
+        return { "message": "Register Failed" }, 500
     
     return { "message": "Register Success" }, 200
 
@@ -76,14 +69,13 @@ def check_login_jwt():
 
         store = s.query(Stores).filter(Stores.email == email).first()                
 
-        if store == None:
+        if store is None:
             return { "message": "User not found" }, 403
         
-        if not store.check_password(request.json['password_hash']):
+        if not store.check_password(data['password_hash']):
             return { "message": "Invalid password" }, 403
 
-        access_token = create_access_token(identity=store.id, additional_claims= {"name": store.store_name, "id": store.id})
-
+        access_token = create_access_token(identity=store.id, additional_claims={"name": store.store_name, "id": store.id})
         return {
             "access_token": access_token,
             "message": "Login Success"
@@ -95,24 +87,25 @@ def check_login_jwt():
         return { "message": "Login Failed" }, 500
 
 @store_routes.route('/stores/me', methods=['PUT'])
-@login_required
+@jwt_required()
 def update_store():
-    Session = sessionmaker(bind=engine)  # Ensure you are binding the engine here
+    Session = sessionmaker(bind=engine)
     s = Session()
     s.begin()
     
     try:
-        store = s.query(Stores).filter(Stores.id == current_user.id).first()
+        store_id = get_jwt_identity()
+        store = s.query(Stores).filter(Stores.id == store_id).first()
 
         if not store:
             return {"message": "Store not found"}, 404
 
-        data = request.json  # Access the JSON data from the request
+        data = request.json
 
         store.store_name = data['store_name']
         store.description = data['description']
         store.image_url = data['image_url']
-        store.seller_full_name = data['seller_full_name']            
+        store.seller_full_name = data['seller_full_name']
         store.username = data['username']
         store.email = data['email']
         store.bank_account = data['bank_account']
@@ -130,12 +123,9 @@ def update_store():
         s.rollback()
         return {"message": "Update Failed", "error": str(e)}, 500
 
-
 @store_routes.route('/store_logout', methods=['POST'])
-# @login_required
 @jwt_required()
 def user_logout():
-    logout_user()
     return { "message": "Logout Success" }
 
 @store_routes.route('/products', methods=['POST'])
@@ -202,19 +192,21 @@ def add_product():
     
 
 @store_routes.route('/products', methods=['GET'])
-@jwt_required()
 def get_products():
     Session = sessionmaker(bind=engine)
     s = Session()
     s.begin()
 
     try:
+        products = s.query(Products).all()      
 
-        store = get_jwt_identity()
-        
-        products = s.query(Products).filter(Products.store_id == store).all()        
-        products_list = [{"id": p.id, "name": p.name, "price": p.price} for p in products]
-        # products_list = [products]
+        products_list = [{
+        "id": p.id,
+        "name": p.name,
+        "price": p.price,
+        "stock": p.stock_quantity,
+        "store_id": p.store_id
+        } for p in products]
 
         return {
             'products': products_list,
@@ -224,4 +216,133 @@ def get_products():
         print(e)
         return { 'message': 'Unexpected Error' }, 500 
 
-  
+@store_routes.route('/product/<id>', methods=['GET'])
+def get_product(id):
+  Session = sessionmaker(bind=engine)
+    s = Session()
+    s.begin()
+
+    try:
+
+        query = s.query(Products).filter(Products.id == id).first()
+
+        product = {
+        "name": query.name,
+        "description": query.description,
+        "price": query.price,
+        "stock_quantity": query.stock_quantity,
+        "image_url": query.image_url,        
+        "store_id": query.store_id
+        }
+
+        return {
+            'product': product,
+        }, 200
+
+    except Exception as e:
+        print(e)
+        return { 'message': 'Unexpected Error' }, 500
+      
+# @store_routes.route('/products', methods=['GET'])
+# @jwt_required()
+# def get_products():
+#     Session = sessionmaker(bind=engine)
+#     s = Session()
+#     s.begin()
+
+#     try:
+#         store = get_jwt_identity()
+#         products = s.query(Products).filter(Products.store_id == store).all()        
+#         products_list = [{"id": p.id, "name": p.name, "price": p.price} for p in products]
+
+#         return {
+#             'products': products_list,
+#         }, 200
+
+#     except Exception as e:
+#         print(e)
+#         return { 'message': 'Unexpected Error' }, 500
+    
+@store_routes.route('/store/products_overview', methods=['GET'])
+@jwt_required()
+def get_products_overview():
+    Session = sessionmaker(bind=engine)
+    s = Session()
+    s.begin()
+
+    try:
+        store_id = get_jwt_identity()
+        products = s.query(Products).filter(Products.store_id == store_id).all()
+
+        products_list = [{
+            "id": p.id,
+            "name": p.name,
+            "price": p.price,
+            "stock_quantity": p.stock_quantity
+        } for p in products]
+
+        return jsonify({
+            "products": products_list,
+        }), 200
+
+    except Exception as e:
+        print(e)
+        return jsonify({"message": "Failed to fetch product overview"}), 500
+
+@store_routes.route('/store/info', methods=['GET'])
+@jwt_required()
+def get_store_info():
+    Session = sessionmaker(bind=engine)
+    s = Session()
+    s.begin()
+
+    try:
+        store_id = get_jwt_identity()
+        store = s.query(Stores).filter(Stores.id == store_id).first()
+
+        if store is None:
+            return jsonify({"message": "Store not found"}), 404
+
+        store_info = {
+            "store_name": store.store_name,
+            "description": store.description,
+            "bank_account": store.bank_account,
+            "contact_number": store.contact_number,
+            "address": store.address,
+            "city": store.city,
+            "state": store.state,
+            "zip_code": store.zip_code,
+            "image_url": store.image_url
+        }
+
+        return jsonify(store_info), 200
+
+    except Exception as e:
+        print(e)
+        return jsonify({"message": "Failed to fetch store info"}), 500
+
+@store_routes.route('/store/orders', methods=['GET'])
+@jwt_required()
+def get_orders():
+    Session = sessionmaker(bind=engine)
+    s = Session()
+    s.begin()
+
+    try:
+        store_id = get_jwt_identity()
+        orders = s.query(Orders).filter(Orders.store_id == store_id).all()
+
+        orders_list = [{
+            "order_id": o.id,
+            "total_amount": o.total,
+            "delivery_date": o.delivery_date 
+        } for o in orders]
+
+        return jsonify({
+            "orders": orders_list
+        }), 200
+
+    except Exception as e:
+        print(e)
+        return jsonify({"message": "Failed to fetch orders"}), 500
+

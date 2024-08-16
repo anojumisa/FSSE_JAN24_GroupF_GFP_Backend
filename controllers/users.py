@@ -1,9 +1,9 @@
-from flask import Blueprint, jsonify, make_response, request
+from flask import Blueprint, jsonify, request
 from connectors.mysql_connector import engine
 from models.users import User
+from models.order import Order 
 from sqlalchemy.orm import sessionmaker
-from flask_login import login_user, login_required, logout_user, current_user
-from flask_jwt_extended import create_access_token, jwt_required
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 
 user_routes = Blueprint("user_routes", __name__)
 Session = sessionmaker(bind=engine)
@@ -54,24 +54,82 @@ def register_user():
     finally:
         session.close()
 
-@user_routes.route('/profile', methods=['GET'])
-@login_required
-def get_user_profile():
-    return jsonify({ 
-        "id": current_user.id,
-        "username": current_user.username,
-        "email": current_user.email,
-        "first_name": current_user.first_name,
-        "last_name": current_user.last_name,
-        "address": current_user.address,
-        "city": current_user.city,
-        "state": current_user.state,
-        "zip_code": current_user.zip_code,
-        "image_url": current_user.image_url
-    })
+@user_routes.route('/login', methods=['POST'])
+def check_login():
+    session = Session()
+
+    try:
+        data = request.get_json()
+        if not data or 'email' not in data or 'password' not in data:
+            return jsonify({"message": "Invalid credentials"}), 400
+
+        user = session.query(User).filter(User.email == data['email']).first()
+
+        if not user or not user.check_password(data['password']):
+            return jsonify({"message": "Invalid email or password"}), 403
+
+        # Create a JWT token
+        access_token = create_access_token(identity=user.id, additional_claims={
+            "email": user.email,
+            "first_name": user.first_name,
+            "last_name": user.last_name
+        })
+        return jsonify({"access_token": access_token, "message": "Login Success"}), 200
+
+    except Exception as e:
+        print(e)
+        session.rollback()
+        return jsonify({"message": "Login Failed"}), 500
+
+    finally:
+        session.close()
+
+@user_routes.route('/user/dashboard', methods=['GET'])
+@jwt_required()
+def get_user_dashboard_data():
+    session = Session()
+
+    try:
+        user_id = get_jwt_identity()
+        user = session.query(User).filter_by(id=user_id).first()
+
+        if not user:
+            return jsonify({"message": "User not found"}), 404
+
+        transactions = session.query(Order).filter_by(user_id=user_id).all()
+
+        data = {
+            "user": {
+                "first_name": user.first_name,
+                "last_name": user.last_name,
+                "email": user.email,
+                "address": user.address,
+                "city": user.city,
+                "state": user.state,
+                "zip_code": user.zip_code
+            },
+            "transactions": [
+                {
+                    "id": transaction.id,
+                    "total": transaction.total,
+                    "payment_method": transaction.payment_method,
+                    "status": transaction.status,
+                    "created_at": transaction.created_at
+                } for transaction in transactions
+            ]
+        }
+        return jsonify(data), 200
+
+    except Exception as e:
+        print(f"Error: {e}")
+        session.rollback()
+        return jsonify({"message": "Failed to fetch user data"}), 500
+
+    finally:
+        session.close()
 
 @user_routes.route('/profile', methods=['PUT'])
-@login_required
+@jwt_required()
 def update_user_profile():
     session = Session()
 
@@ -89,7 +147,8 @@ def update_user_profile():
             if field not in data:
                 return jsonify({"message": f"{field.replace('_', ' ').title()} is required"}), 400
 
-        user = session.query(User).filter(User.id == current_user.id).first()
+        user_id = get_jwt_identity()
+        user = session.query(User).filter(User.id == user_id).first()
 
         if not user:
             return jsonify({"message": "User not found"}), 404
@@ -113,39 +172,7 @@ def update_user_profile():
     finally:
         session.close()
 
-@user_routes.route('/login', methods=['POST'])
-def check_login_jwt():
-    Session = sessionmaker(bind=engine)
-    s = Session()
-    s.begin()
-
-    try:
-        data = request.json 
-        email = data['email']
-
-        user = s.query(User).filter(User.email == email).first()                
-
-        if user == None:
-            return { "message": "User not found" }, 403
-        
-        if not user.check_password(request.json['password']):
-            return { "message": "Invalid password" }, 403
-
-        access_token = create_access_token(identity=user.id, additional_claims= {"username": user.username, "id": user.id})
-
-        return {
-            "access_token": access_token,
-            "message": "Login Success"
-        }, 200        
-
-    except Exception as e:
-        s.rollback()
-        print(f"Exception: {e}")
-        return { "message": "Login Failed" }, 500        
-
 @user_routes.route('/logout', methods=['POST'])
-# @login_required
 @jwt_required()
 def user_logout():
-    logout_user()
-    return jsonify({"message": "Logout Success"})
+    return jsonify({"message": "Logout Success"}), 200
