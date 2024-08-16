@@ -214,7 +214,7 @@ def get_products():
 
     except Exception as e:
         print(e)
-        return { 'message': 'Unexpected Error' }, 500
+        return { 'message': 'Unexpected Error' }, 500 
 
 @store_routes.route('/product/<id>', methods=['GET'])
 def get_product(id):
@@ -345,3 +345,4 @@ def get_orders():
     except Exception as e:
         print(e)
         return jsonify({"message": "Failed to fetch orders"}), 500
+
