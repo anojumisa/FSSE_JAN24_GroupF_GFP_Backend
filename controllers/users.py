@@ -3,6 +3,7 @@ from connectors.mysql_connector import engine
 from models.users import User
 from sqlalchemy.orm import sessionmaker
 from flask_login import login_user, login_required, logout_user, current_user
+from flask_jwt_extended import create_access_token, jwt_required
 
 user_routes = Blueprint("user_routes", __name__)
 Session = sessionmaker(bind=engine)
@@ -49,31 +50,6 @@ def register_user():
         session.rollback()
         print(f"Exception: {e}")
         return jsonify({"message": "Failed to Register"}), 500
-
-    finally:
-        session.close()
-
-@user_routes.route('/login', methods=['POST'])
-def check_login():
-    session = Session()
-
-    try:
-        data = request.get_json()
-        if not data or 'email' not in data or 'password' not in data:
-            return jsonify({"message": "Invalid credentials"}), 400
-
-        user = session.query(User).filter(User.email == data['email']).first()
-
-        if not user or not user.check_password(data['password']):
-            return jsonify({"message": "Invalid email or password"}), 403
-
-        login_user(user)
-        return jsonify({"message": "Login Success"}), 200
-
-    except Exception as e:
-        print(e)
-        session.rollback()
-        return jsonify({"message": "Login Failed"}), 500
 
     finally:
         session.close()
@@ -137,8 +113,39 @@ def update_user_profile():
     finally:
         session.close()
 
-@user_routes.route('/logout', methods=['GET'])
-@login_required
+@user_routes.route('/login', methods=['POST'])
+def check_login_jwt():
+    Session = sessionmaker(bind=engine)
+    s = Session()
+    s.begin()
+
+    try:
+        data = request.json 
+        email = data['email']
+
+        user = s.query(User).filter(User.email == email).first()                
+
+        if user == None:
+            return { "message": "User not found" }, 403
+        
+        if not user.check_password(request.json['password']):
+            return { "message": "Invalid password" }, 403
+
+        access_token = create_access_token(identity=user.id, additional_claims= {"username": user.username, "id": user.id})
+
+        return {
+            "access_token": access_token,
+            "message": "Login Success"
+        }, 200        
+
+    except Exception as e:
+        s.rollback()
+        print(f"Exception: {e}")
+        return { "message": "Login Failed" }, 500        
+
+@user_routes.route('/logout', methods=['POST'])
+# @login_required
+@jwt_required()
 def user_logout():
     logout_user()
     return jsonify({"message": "Logout Success"})

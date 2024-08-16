@@ -6,6 +6,7 @@ from models.products import Products
 from sqlalchemy.orm import sessionmaker
 
 from flask_login import login_user, login_required, logout_user, current_user
+from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
 
 store_routes = Blueprint("store_routes", __name__)
 
@@ -64,51 +65,35 @@ def register_seller():
     return { "message": "Register Success" }, 200
 
 @store_routes.route('/store_login', methods=['POST'])
-def check_login():
+def check_login_jwt():
     Session = sessionmaker(bind=engine)
     s = Session()
     s.begin()
 
     try:
-
-        print(f"Request Headers: {request.headers}")
-        print(f"Request Data: {request.data}")
-
         data = request.json 
         email = data['email']
-        password_hash = data['password_hash']
 
-        print(f"Received email: {email}")
-        print(f"Received password_hash: {password_hash}") 
-
-        store = s.query(Stores).filter(Stores.email == email).first()       
+        store = s.query(Stores).filter(Stores.email == email).first()                
 
         if store == None:
-            return { "message": "Store not found" }, 403
+            return { "message": "User not found" }, 403
         
-        if not store.check_password(password_hash):
-            return { "message": "Wrong password" }, 403
-        
-        login_user(store)
+        if not store.check_password(request.json['password_hash']):
+            return { "message": "Invalid password" }, 403
 
-        session_id = request.cookies.get('session')
+        access_token = create_access_token(identity=store.id, additional_claims= {"name": store.store_name, "id": store.id})
 
-        print(f"Session ID: {session_id}")
-
-        session_id = "your_generated_session_id"  # You should generate this
-        response = make_response({
-            "session_id": session_id,
-            "message": "Login Successful"
-        }, 200)
-        response.set_cookie('session', session_id, httponly=True, secure=False, samesite='Lax')  # Set secure to True in production
-
-        return response
+        return {
+            "access_token": access_token,
+            "message": "Login Success"
+        }, 200        
 
     except Exception as e:
         s.rollback()
         print(f"Exception: {e}")
         return { "message": "Login Failed" }, 500
-    
+
 @store_routes.route('/stores/me', methods=['PUT'])
 @login_required
 def update_store():
@@ -146,20 +131,23 @@ def update_store():
         return {"message": "Update Failed", "error": str(e)}, 500
 
 
-@store_routes.route('/store_logout', methods=['GET'])
-@login_required
+@store_routes.route('/store_logout', methods=['POST'])
+# @login_required
+@jwt_required()
 def user_logout():
     logout_user()
     return { "message": "Logout Success" }
 
 @store_routes.route('/products', methods=['POST'])
-@login_required
+# @login_required
+@jwt_required()
 def add_product():
     Session = sessionmaker(bind=engine)
     s = Session()
     s.begin()
 
     try:
+
         data = request.json
         new_product = Products(
             name=data['name'],
@@ -168,7 +156,7 @@ def add_product():
             stock_quantity=data['stock_quantity'],
             image_url=data.get('image_url', ''),
             location=data.get('location', ''),
-            store_id=current_user.id  # Link the product to the current logged-in store
+            store_id = get_jwt_identity()
         )
         
         s.add(new_product)
@@ -179,3 +167,26 @@ def add_product():
         s.rollback()
         print(f"Exception: {e}")
         return {"message": "Failed to add product", "error": str(e)}, 500
+
+@store_routes.route('/products', methods=['GET'])
+@jwt_required()
+def get_products():
+    Session = sessionmaker(bind=engine)
+    s = Session()
+    s.begin()
+
+    try:
+
+        store = get_jwt_identity()
+        
+        products = s.query(Products).filter(Products.store_id == store).all()        
+        products_list = [{"id": p.id, "name": p.name, "price": p.price} for p in products]
+        # products_list = [products]
+
+        return {
+            'products': products_list,
+        }, 200
+
+    except Exception as e:
+        print(e)
+        return { 'message': 'Unexpected Error' }, 500   
