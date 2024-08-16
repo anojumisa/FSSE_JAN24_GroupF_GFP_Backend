@@ -35,7 +35,21 @@ class Products(Base):
     location = Column(String(255))
     created_at = Column(DateTime(timezone=True), server_default=func.now())
     updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.current_timestamp())
+    featured = Column(Integer, default=0)
     store_id = Column(Integer, ForeignKey('store.id'), nullable=False)
     store = relationship("Stores", back_populates="products")
     categories = relationship('ProductCategory', back_populates='product')
     order_items = relationship('OrderItem', back_populates='product')
+
+    def to_dict(self):
+        return {
+            'id': self.id,
+            'name': self.name,
+            'description': self.description,
+            'price': self.price,
+            'stock_quantity': self.stock_quantity,
+            'image_url': self.image_url,
+            'location': self.location,
+            'featured': self.featured,
+            'store_id': self.store_id
+        }

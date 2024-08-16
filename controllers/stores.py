@@ -222,4 +222,6 @@ def get_products():
 
     except Exception as e:
         print(e)
-        return { 'message': 'Unexpected Error' }, 500   
+        return { 'message': 'Unexpected Error' }, 500 
+
+  
