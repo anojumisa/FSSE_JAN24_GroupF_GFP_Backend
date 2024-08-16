@@ -169,19 +169,23 @@ def add_product():
         return {"message": "Failed to add product", "error": str(e)}, 500
 
 @store_routes.route('/products', methods=['GET'])
-@jwt_required()
 def get_products():
     Session = sessionmaker(bind=engine)
     s = Session()
     s.begin()
 
     try:
-
-        store = get_jwt_identity()
         
-        products = s.query(Products).filter(Products.store_id == store).all()        
-        products_list = [{"id": p.id, "name": p.name, "price": p.price} for p in products]
-        # products_list = [products]
+        # Make filter based on location later
+        products = s.query(Products).all()      
+
+        products_list = [{
+        "id": p.id,
+        "name": p.name,
+        "price": p.price,
+        "stock": p.stock_quantity,
+        "store_id": p.store_id
+        } for p in products]
 
         return {
             'products': products_list,
@@ -189,4 +193,31 @@ def get_products():
 
     except Exception as e:
         print(e)
-        return { 'message': 'Unexpected Error' }, 500   
+        return { 'message': 'Unexpected Error' }, 500
+
+@store_routes.route('/product/<id>', methods=['GET'])
+def get_product(id):
+    Session = sessionmaker(bind=engine)
+    s = Session()
+    s.begin()
+
+    try:
+
+        query = s.query(Products).filter(Products.id == id).first()
+
+        product = {
+        "name": query.name,
+        "description": query.description,
+        "price": query.price,
+        "stock_quantity": query.stock_quantity,
+        "image_url": query.image_url,        
+        "store_id": query.store_id
+        }
+
+        return {
+            'product': product,
+        }, 200
+
+    except Exception as e:
+        print(e)
+        return { 'message': 'Unexpected Error' }, 500 
