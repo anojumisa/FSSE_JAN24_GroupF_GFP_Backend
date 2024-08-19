@@ -23,7 +23,7 @@ def add_product_categories(product_id):
         categories = s.query(Category).filter(Category.category_id.in_(category_ids)).all()
 
         for category in categories:
-            product_category = ProductCategory(product_id=product.product_id, category_id=category.category_id)
+            product_category = ProductCategory(product_id=product.id, category_id=category.category_id)
             s.add(product_category)
 
         s.commit()
@@ -45,13 +45,13 @@ def remove_product_categories(product_id):
     s.begin()
 
     try:
-        product = s.query(Products).filter(Products.product_id == product_id).first()
+        product = s.query(Products).filter(Products.id == product_id).first()
         if not product:
             return {"message": "Product not found"}, 404
 
         data = request.json
         category_ids = data.get('category_ids', [])
-        categories = s.query(Category).filter(Category.category_id.in_(category_ids)).all()
+        categories = s.query(Category).filter(Category.id.in_(category_ids)).all()
 
         for category in categories:
             if category in product.categories:

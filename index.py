@@ -21,10 +21,13 @@ from models.stores import Stores
 from models.users import User
 from models.products import Products
 
+from google.cloud import storage
+
 load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+app.config.from_object('config.Config')
 
 jwt = JWTManager(app)
 
@@ -79,5 +82,56 @@ def get_featured_products():
     response = jsonify(featured_products)
     return response
 
+storage_client = storage.Client.from_service_account_json(app.config['GCS_CREDENTIALS'])
+bucket = storage_client.get_bucket(app.config['GCS_BUCKET_NAME'])
+
+@app.route('/upload', methods=['POST'])
+def upload_image():
+    file = request.files.get('image')
+
+    if file and file.filename:
+        try:
+            # Validate file type (example: only allow images)
+            if not file.filename.lower().endswith(('.png', '.jpg', '.jpeg', '.gif')):
+                return jsonify({"error": "Invalid file type"}), 400
+
+            public_url = f"https://storage.googleapis.com/{app.config['GCS_BUCKET_NAME']}/{file.filename}"
+            blob = bucket.blob(file.filename)
+            blob.upload_from_file(file)
+
+            print(f"File uploaded to {public_url}")
+
+            return make_response(jsonify({"url": public_url}), 200)
+        except Exception as e:
+            return jsonify({"error": str(e)}), 500
+
+    return jsonify({"error": "No file uploaded"}), 400
+
+@app.route('/store_image_url', methods=['POST'])
+def store_image_url():
+    data = request.json
+    print("Received data:", data)
+    id = data.get('id')
+    image_url = data.get('image_url')
+
+    if id and image_url:
+        Session = sessionmaker(bind=connection)
+        s = Session()
+        try:
+            product = s.query(Products).filter_by(id=id).first()
+            if product:
+                product.image_url = image_url
+                s.commit()
+                return jsonify({"message": "Image URL updated successfully"}), 200
+            else:
+                return jsonify({"message": "Product not found"}), 404
+        except Exception as e:
+            s.rollback()
+            return jsonify({"error": str(e)}), 500
+        finally:
+            s.close()
+    else:
+        return jsonify({"message": "Product ID and image URL are required"}), 400
+    
 if __name__ == "__main__":
     app.run(port=5000, debug=True)

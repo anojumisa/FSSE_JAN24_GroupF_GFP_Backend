@@ -4,7 +4,7 @@ from models.stores import Stores
 from models.products import Products
 
 from sqlalchemy.orm import sessionmaker
-from flask_jwt_extended import create_access_token, jwt_required, get_jwt_identity
+from flask_jwt_extended import JWTManager, create_access_token, jwt_required, get_jwt_identity
 
 store_routes = Blueprint("store_routes", __name__)
 
@@ -20,7 +20,7 @@ def register_seller():
 
     required_fields = [
         'seller_full_name', 'username', 'email', 'store_name',
-        'description', 'bank_account', 'contact_number', 'image_url',
+        'description', 'bank_account', 'contact_number',
         'address', 'city', 'state', 'zip_code', 'password_hash'
     ]
 
@@ -37,7 +37,6 @@ def register_seller():
             description=data.get('description'),
             bank_account=data.get('bank_account'),
             contact_number=data.get('contact_number'),
-            image_url=data.get('image_url'),
             address=data.get('address'),
             city=data.get('city'),
             state=data.get('state'),
@@ -218,7 +217,7 @@ def get_products():
 
 @store_routes.route('/product/<id>', methods=['GET'])
 def get_product(id):
-  Session = sessionmaker(bind=engine)
+    Session = sessionmaker(bind=engine)
     s = Session()
     s.begin()
 
@@ -288,6 +287,66 @@ def get_products_overview():
     except Exception as e:
         print(e)
         return jsonify({"message": "Failed to fetch product overview"}), 500
+    
+@store_routes.route('/update_product/<int:product_id>', methods=['PUT'])
+@jwt_required()
+def update_product(product_id):
+    Session = sessionmaker(bind=engine)
+    s = Session()
+    s.begin()
+
+    try:
+        product = s.query(Products).filter(Products.id == product_id).first()
+        if not product:
+            return jsonify({"error": "Product not found"}), 404
+    except Exception as e:
+        print(e)
+        return jsonify({"message": "Failed to update product"}), 500
+
+    data = request.get_json()
+
+    if 'name' in data:
+        product.name = data['name']
+    if 'description' in data:
+        product.description = data['description']
+    if 'price' in data:
+        product.price = data['price']
+    if 'stock_quantity' in data:
+        product.stock_quantity = data['stock_quantity']
+    if 'image_url' in data:
+        product.image_url = data['image_url']
+    if 'location' in data:
+        product.location = data['location']
+
+    s.commit()
+    s.close()
+    print("Product updated successfully")
+    # Return a success response
+    return jsonify({"message": "Product updated successfully"}), 200
+
+@store_routes.route('/remove_product/<int:product_id>', methods=['DELETE'])
+@jwt_required()
+def remove_product(product_id):
+    Session = sessionmaker(bind=engine)
+
+    s = Session()
+    s.begin()
+
+    try:
+        product = s.query(Products).filter(Products.id == product_id).first()
+        if not product:
+            return jsonify({"error": "Product not found"}), 404
+
+        s.delete(product)
+        s.commit()
+        print("Product removed successfully")
+        return jsonify({"message": "Product removed successfully"}), 200
+    except Exception as e:
+        s.rollback()
+        print(e)
+        return jsonify({"message": "Failed to remove product"}), 500
+    finally:
+        s.close()
 
 @store_routes.route('/store/info', methods=['GET'])
 @jwt_required()

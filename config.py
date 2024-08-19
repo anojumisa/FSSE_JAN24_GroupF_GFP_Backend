@@ -1,0 +1,6 @@
+import os
+
+class Config:
+    GCS_BUCKET_NAME = os.getenv('GCS_BUCKET_NAME')
+    GCS_CREDENTIALS = os.getenv('GCS_CREDENTIALS')
+    SQLALCHEMY_DATABASE_URI = os.getenv('SQLALCHEMY_DATABASE_URI')
