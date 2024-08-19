@@ -204,7 +204,8 @@ def get_products():
         "name": p.name,
         "price": p.price,
         "stock": p.stock_quantity,
-        "store_id": p.store_id
+        "store_id": p.store_id,
+        "image_url": p.image_url
         } for p in products]
 
         return {

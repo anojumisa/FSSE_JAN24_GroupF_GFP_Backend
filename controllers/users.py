@@ -139,7 +139,7 @@ def update_user_profile():
             return jsonify({"message": "Invalid data provided"}), 400
 
         required_fields = [
-            'first_name', 'last_name', 'address', 'city',
+            'first_name', 'last_name', 'address', 'email', 'city',
             'state', 'zip_code', 'image_url'
         ]
 
@@ -155,6 +155,7 @@ def update_user_profile():
 
         user.first_name = data['first_name']
         user.last_name = data['last_name']
+        user.email = data['email']
         user.address = data['address']
         user.city = data['city']
         user.state = data['state']

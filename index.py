@@ -132,6 +132,32 @@ def store_image_url():
             s.close()
     else:
         return jsonify({"message": "Product ID and image URL are required"}), 400
+
+@app.route('/user_image', methods=['POST'])
+def store_image():
+    data = request.json
+    print("Received data:", data)
+    id = data.get('id')
+    image_url = data.get('image_url')
+
+    if id and image_url:
+        Session = sessionmaker(bind=connection)
+        s = Session()
+        try:
+            user = s.query(User).filter_by(id=id).first()
+            if user:
+                user.image_url = image_url
+                s.commit()
+                return jsonify({"message": "Image updated successfully"}), 200
+            else:
+                return jsonify({"message": "User not found"}), 404
+        except Exception as e:
+            s.rollback()
+            return jsonify({"error": str(e)}), 500
+        finally:
+            s.close()
+    else:
+        return jsonify({"message": "User ID and image are required"}), 400
     
 if __name__ == "__main__":
     app.run(port=5000, debug=True)
