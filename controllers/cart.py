@@ -12,25 +12,29 @@ from flask_jwt_extended import jwt_required, get_jwt_identity
 
 cart_routes = Blueprint('cart_routes', __name__)
 
+
 @cart_routes.route('/cart', methods=['GET'])
-@login_required
+@jwt_required()
 def get_cart():
     Session = sessionmaker(bind=engine)
     session = Session()
 
     try:
-        # Ensure the user has a cart
-        cart = session.query(Cart).filter_by(user_id=current_user.id).first()
+        user_id = get_jwt_identity()
+        user = session.query(User).filter_by(id=user_id).first()
+        if not user:
+            return jsonify({"message": "User not found"}), 404
+        
+        cart = session.query(Cart).filter_by(user_id=user_id).first()
         if not cart:
-            return jsonify({"message": "Cart is empty"}), 200
-
-        # Fetch all items in the cart
+            return jsonify({"message": "Cart not found"}), 404
+        
         cart_items = session.query(CartItem).filter_by(cart_id=cart.id).all()
         items = []
         for item in cart_items:
-            product = session.query(Products).filter_by(product_id=item.product_id).first()
+            product = session.query(Products).filter_by(product_id=item.id).first()
             items.append({
-                "product_id": item.product_id,
+                "product_id": item.id,
                 "product_name": product.name,
                 "quantity": item.quantity,
                 "price": product.price,
@@ -38,7 +42,7 @@ def get_cart():
             })
 
         return jsonify({"cart_items": items}), 200
-
+    
     except SQLAlchemyError as e:
         session.rollback()
         print(f"Error: {str(e)}")
@@ -58,8 +62,18 @@ def add_product_to_cart():
         product_id = data.get('productId')
         quantity = data.get('quantity', 1)
 
+        # Debugging statements
+        print(f"Received productId: {product_id} of type {type(product_id)}")
+        print(f"Received quantity: {quantity} of type {type(quantity)}")
+
+        if product_id is None or product_id == '':
+            return jsonify({"message": "productId is required"}), 400
+
         if isinstance(product_id, str):
-            product_id = int(product_id)        
+            try:
+                product_id = int(product_id)
+            except ValueError:
+                return jsonify({"message": "Invalid productId"}), 400
 
         if not isinstance(product_id, int):
             return jsonify({"message": "Invalid productId"}), 400
@@ -88,10 +102,11 @@ def add_product_to_cart():
 
     except Exception as e:
         session.rollback()
+        print(f"Error: {str(e)}")  # Debugging statement
         return jsonify({"message": "An error occurred while adding the product to the cart"}), 500
 
     finally:
-        session.close() 
+        session.close()
 
 @cart_routes.route('/cart', methods=['GET'])
 # @login_required
@@ -205,9 +220,9 @@ def checkout_cart():
         cart_items = session.query(CartItem).filter_by(cart_id=cart.id).all()
         items = []
         for item in cart_items:
-            product = session.query(Products).filter_by(product_id=item.product_id).first()
+            product = session.query(Products).filter_by(product_id=item.id).first()
             items.append({
-                "product_id": item.product_id,
+                "product_id": item.id,
                 "product_name": product.name,
                 "quantity": item.quantity,
                 "price": product.price,
