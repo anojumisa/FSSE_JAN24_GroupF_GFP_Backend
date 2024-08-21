@@ -205,7 +205,8 @@ def get_products():
         "price": p.price,
         "stock": p.stock_quantity,
         "store_id": p.store_id,
-        "image_url": p.image_url
+        "image_url": p.image_url,
+        "location": p.location
         } for p in products]
 
         return {
@@ -365,6 +366,7 @@ def get_store_info():
 
         store_info = {
             "store_name": store.store_name,
+            "email": store.email,
             "description": store.description,
             "bank_account": store.bank_account,
             "contact_number": store.contact_number,
@@ -372,7 +374,10 @@ def get_store_info():
             "city": store.city,
             "state": store.state,
             "zip_code": store.zip_code,
-            "image_url": store.image_url
+            "image_url": store.image_url,
+            "seller_full_name": store.seller_full_name,
+            "username": store.username,
+            "created_at": store.created_at
         }
 
         return jsonify(store_info), 200

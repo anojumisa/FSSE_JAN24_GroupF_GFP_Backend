@@ -106,7 +106,10 @@ def get_user_dashboard_data():
                 "address": user.address,
                 "city": user.city,
                 "state": user.state,
-                "zip_code": user.zip_code
+                "zip_code": user.zip_code,
+                "image_url": user.image_url,
+                "created_at": user.created_at,
+                "username": user.username
             },
             "transactions": [
                 {

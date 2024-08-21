@@ -1,6 +1,7 @@
 from flask import Flask, jsonify, make_response, request
 from dotenv import load_dotenv
 from flask_cors import CORS
+from flask_sqlalchemy import SQLAlchemy
 from connectors.mysql_connector import connection
 
 from sqlalchemy.orm import sessionmaker
@@ -27,6 +28,8 @@ load_dotenv()
 
 app = Flask(__name__)
 app.config['SECRET_KEY'] = os.getenv('SECRET_KEY')
+app.config['SQLALCHEMY_DATABASE_URI'] = os.getenv('SQLALCHEMY_DATABASE_URI')
+db = SQLAlchemy(app)
 app.config.from_object('config.Config')
 
 jwt = JWTManager(app)
@@ -158,6 +161,53 @@ def store_image():
             s.close()
     else:
         return jsonify({"message": "User ID and image are required"}), 400
+    
+@app.route('/search', methods=['GET'])
+def search():
+    session = sessionmaker(bind=connection)
+    session = session()
+
+    keyword = request.args.get('keyword')
+    if not keyword:
+        return jsonify({"message": "Keyword is required"}), 400
+
+    results = session.query(Products).filter(
+        (Products.name.ilike(f'%{keyword}%')) | 
+        (Products.description.ilike(f'%{keyword}%'))
+    ).all()
+
+    if not results:
+        return jsonify({"message": "No products found"}), 404
+
+    products = [product.to_dict() for product in results]
+    return jsonify(products), 200
+
+@app.route('/search/location', methods=['GET'])
+def search_by_location():
+    session = sessionmaker(bind=connection)
+    session = session()
+
+    keyword = request.args.get('keyword')
+    location = request.args.get('location')
+
+    if not keyword:
+        return jsonify({"message": "Keyword is required"}), 400
+
+    query = session.query(Products).filter(
+        (Products.name.ilike(f'%{keyword}%')) | 
+        (Products.description.ilike(f'%{keyword}%'))
+    )
+
+    if location:
+        query = query.filter(Products.location.ilike(f'%{location}%'))
+
+    results = query.all()
+
+    if not results:
+        return jsonify({"message": "No products found"}), 404
+
+    products = [product.to_dict() for product in results]
+    return jsonify(products), 200
     
 if __name__ == "__main__":
     app.run(port=5000, debug=True)
