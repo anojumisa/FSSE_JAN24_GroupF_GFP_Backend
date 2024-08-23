@@ -228,6 +228,7 @@ def get_product(id):
         query = s.query(Products).filter(Products.id == id).first()
 
         product = {
+        "id": query.id,
         "name": query.name,
         "description": query.description,
         "price": query.price,
