@@ -13,7 +13,9 @@ bcrypt = "*"
 mysql-connector-python = "*"
 flask-jwt-extended = "*"
 flask-sqlalchemy = "*"
+marshmallow = "*"
 pymysql = "*"
+
 
 [dev-packages]
 
