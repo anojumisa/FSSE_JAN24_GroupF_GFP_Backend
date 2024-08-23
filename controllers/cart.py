@@ -8,28 +8,33 @@ from models.cart_item import CartItem
 
 from sqlalchemy.exc import SQLAlchemyError
 from flask_login import current_user, login_required
+from flask_jwt_extended import jwt_required, get_jwt_identity
 
 cart_routes = Blueprint('cart_routes', __name__)
 
+
 @cart_routes.route('/cart', methods=['GET'])
-@login_required
+@jwt_required()
 def get_cart():
     Session = sessionmaker(bind=engine)
     session = Session()
 
     try:
-        # Ensure the user has a cart
-        cart = session.query(Cart).filter_by(user_id=current_user.id).first()
+        user_id = get_jwt_identity()
+        user = session.query(User).filter_by(id=user_id).first()
+        if not user:
+            return jsonify({"message": "User not found"}), 404
+        
+        cart = session.query(Cart).filter_by(user_id=user_id).first()
         if not cart:
-            return jsonify({"message": "Cart is empty"}), 200
-
-        # Fetch all items in the cart
+            return jsonify({"message": "Cart not found"}), 404
+        
         cart_items = session.query(CartItem).filter_by(cart_id=cart.id).all()
         items = []
         for item in cart_items:
-            product = session.query(Products).filter_by(product_id=item.product_id).first()
+            product = session.query(Products).filter_by(product_id=item.id).first()
             items.append({
-                "product_id": item.product_id,
+                "product_id": item.id,
                 "product_name": product.name,
                 "quantity": item.quantity,
                 "price": product.price,
@@ -37,7 +42,7 @@ def get_cart():
             })
 
         return jsonify({"cart_items": items}), 200
-
+    
     except SQLAlchemyError as e:
         session.rollback()
         print(f"Error: {str(e)}")
@@ -45,57 +50,66 @@ def get_cart():
     finally:
         session.close()
 
-
-
 @cart_routes.route('/cart/add', methods=['POST'])
-@login_required
-def add_to_cart():
+@jwt_required()
+def add_product_to_cart():
     Session = sessionmaker(bind=engine)
     session = Session()
 
     try:
+        current_user_id = get_jwt_identity()
         data = request.json
-        product_id = data.get('product_id')
-        quantity = data.get('quantity', 1)  # Default to 1 if not provided
+        product_id = data.get('productId')
+        quantity = data.get('quantity', 1)
 
-        # Fetch the product
-        product = session.query(Products).filter_by(product_id=product_id).first()
-        if not product:
-            return jsonify({"message": "Product not found"}), 404
+        # Debugging statements
+        print(f"Received productId: {product_id} of type {type(product_id)}")
+        print(f"Received quantity: {quantity} of type {type(quantity)}")
+
+        if product_id is None or product_id == '':
+            return jsonify({"message": "productId is required"}), 400
+
+        if isinstance(product_id, str):
+            try:
+                product_id = int(product_id)
+            except ValueError:
+                return jsonify({"message": "Invalid productId"}), 400
+
+        if not isinstance(product_id, int):
+            return jsonify({"message": "Invalid productId"}), 400
+
+        if not isinstance(quantity, int) or quantity <= 0:
+            return jsonify({"message": "Invalid quantity"}), 400
 
         # Ensure the user has a cart
-        cart = session.query(Cart).filter_by(user_id=current_user.id).first()
+        cart = session.query(Cart).filter_by(user_id=current_user_id).first()
         if not cart:
-            cart = Cart(user_id=current_user.id)
+            cart = Cart(user_id=current_user_id)
             session.add(cart)
             session.commit()
 
-        # Check if the product is already in the cart
+        # Check if the item already exists in the cart
         cart_item = session.query(CartItem).filter_by(cart_id=cart.id, product_id=product_id).first()
         if cart_item:
-            # Update the quantity if the product already exists in the cart
             cart_item.quantity += quantity
         else:
-            # Add a new item to the cart
             cart_item = CartItem(cart_id=cart.id, product_id=product_id, quantity=quantity)
             session.add(cart_item)
 
-        # Commit the transaction
         session.commit()
 
-        return jsonify({"message": "Product added to cart successfully"}), 201
+        return jsonify({"message": "Product added to cart"}), 200
 
-    except SQLAlchemyError as e:
+    except Exception as e:
         session.rollback()
-        print(f"Error: {str(e)}")
-        return jsonify({"message": "Failed to add product to cart", "error": str(e)}), 500
+        print(f"Error: {str(e)}")  # Debugging statement
+        return jsonify({"message": "An error occurred while adding the product to the cart"}), 500
 
     finally:
         session.close()
 
-
-@cart_routes.route('/cart/view', methods=['GET'])
-@login_required
+@cart_routes.route('/cart', methods=['GET'])
+# @login_required
 def view_cart():
     Session = sessionmaker(bind=engine)
     session = Session()
@@ -128,78 +142,65 @@ def view_cart():
     finally:
         session.close()
 
-@cart_routes.route('/cart/update', methods=['PUT'])
-@login_required
-def update_cart_item():
+@cart_routes.route('/cart/<int:product_id>', methods=['PUT'])
+@jwt_required()
+def update_cart_quantity(product_id):
     Session = sessionmaker(bind=engine)
     session = Session()
 
     try:
+        current_user_id = get_jwt_identity()
         data = request.json
-        product_id = data.get('product_id')
         quantity = data.get('quantity')
 
-        if not product_id or not isinstance(product_id, int):
-            return jsonify({"message": "Invalid product_id"}), 400
-        if not isinstance(quantity, int) or quantity <= 0:
+        if not quantity or not isinstance(quantity, int):
             return jsonify({"message": "Invalid quantity"}), 400
 
-        # Ensure the user has a cart
-        cart = session.query(Cart).filter_by(user_id=current_user.id).first()
+        cart = session.query(Cart).filter_by(user_id=current_user_id).first()
         if not cart:
-            return jsonify({"message": "Cart is empty"}), 200
+            return jsonify({"message": "Cart is empty"}), 404
 
-        # Fetch the cart item
         cart_item = session.query(CartItem).filter_by(cart_id=cart.id, product_id=product_id).first()
         if not cart_item:
             return jsonify({"message": "Product not found in cart"}), 404
 
-        # Update the quantity
         cart_item.quantity = quantity
         session.commit()
 
         return jsonify({"message": "Cart item updated successfully"}), 200
 
-    except SQLAlchemyError as e:
+    except Exception as e:
         session.rollback()
-        print(f"Error: {str(e)}")
-        return jsonify({"message": "Failed to update cart item", "error": str(e)}), 500
+        return jsonify({"message": "An error occurred while updating the cart item"}), 500
+
     finally:
         session.close()
 
-@cart_routes.route('/cart/remove', methods=['DELETE'])
-@login_required
-def remove_cart_item():
+@cart_routes.route('/cart/<int:product_id>', methods=['DELETE'])
+@jwt_required()
+def remove_cart_item(product_id):
     Session = sessionmaker(bind=engine)
     session = Session()
 
     try:
-        data = request.json
-        product_id = data.get('product_id')
-
-        if not product_id or not isinstance(product_id, int):
-            return jsonify({"message": "Invalid product_id"}), 400
-
-        # Ensure the user has a cart
-        cart = session.query(Cart).filter_by(user_id=current_user.id).first()
+        current_user_id = get_jwt_identity()
+        cart = session.query(Cart).filter_by(user_id=current_user_id).first()
         if not cart:
             return jsonify({"message": "Cart is empty"}), 200
 
-        # Fetch the cart item
         cart_item = session.query(CartItem).filter_by(cart_id=cart.id, product_id=product_id).first()
         if not cart_item:
             return jsonify({"message": "Product not found in cart"}), 404
 
-        # Remove the cart item
         session.delete(cart_item)
         session.commit()
 
         return jsonify({"message": "Cart item removed successfully"}), 200
 
-    except SQLAlchemyError as e:
+    except Exception as e:
         session.rollback()
-        print(f"Error: {str(e)}")
-        return jsonify({"message": "Failed to remove cart item", "error": str(e)}), 500
+        return jsonify({"message": "An error occurred while removing the item"}), 500
+
     finally:
         session.close()
 
@@ -219,9 +220,9 @@ def checkout_cart():
         cart_items = session.query(CartItem).filter_by(cart_id=cart.id).all()
         items = []
         for item in cart_items:
-            product = session.query(Products).filter_by(product_id=item.product_id).first()
+            product = session.query(Products).filter_by(product_id=item.id).first()
             items.append({
-                "product_id": item.product_id,
+                "product_id": item.id,
                 "product_name": product.name,
                 "quantity": item.quantity,
                 "price": product.price,
@@ -238,27 +239,26 @@ def checkout_cart():
         session.close()
 
 @cart_routes.route('/cart/clear', methods=['DELETE'])
-@login_required
+@jwt_required()
 def clear_cart():
     Session = sessionmaker(bind=engine)
     session = Session()
 
     try:
-        # Ensure the user has a cart
-        cart = session.query(Cart).filter_by(user_id=current_user.id).first()
+        current_user_id = get_jwt_identity()
+        cart = session.query(Cart).filter_by(user_id=current_user_id).first()
         if not cart:
             return jsonify({"message": "Cart is empty"}), 200
 
-        # Remove all items from the cart
         session.query(CartItem).filter_by(cart_id=cart.id).delete()
         session.commit()
 
         return jsonify({"message": "Cart cleared successfully"}), 200
 
-    except SQLAlchemyError as e:
+    except Exception as e:
         session.rollback()
-        print(f"Error: {str(e)}")
-        return jsonify({"message": "Failed to clear cart", "error": str(e)}), 500
+        return jsonify({"message": "An error occurred while clearing the cart"}), 500
+
     finally:
         session.close()
 
