@@ -114,7 +114,7 @@ def get_user_dashboard_data():
             "transactions": [
                 {
                     "id": transaction.id,
-                    "total": transaction.total,
+                    "total_price": transaction.total_price,
                     "payment_method": transaction.payment_method,
                     "status": transaction.status,
                     "created_at": transaction.created_at

@@ -4,51 +4,16 @@ from sqlalchemy.orm import sessionmaker
 from models.users import User
 from models.products import Products
 from models.cart import Cart
+from models.order import Order
+from models.order_item import OrderItem
 from models.cart_item import CartItem
+from models.feedback import Feedback
 
 from sqlalchemy.exc import SQLAlchemyError
 from flask_login import current_user, login_required
 from flask_jwt_extended import jwt_required, get_jwt_identity
 
 cart_routes = Blueprint('cart_routes', __name__)
-
-
-@cart_routes.route('/cart', methods=['GET'])
-@jwt_required()
-def get_cart():
-    Session = sessionmaker(bind=engine)
-    session = Session()
-
-    try:
-        user_id = get_jwt_identity()
-        user = session.query(User).filter_by(id=user_id).first()
-        if not user:
-            return jsonify({"message": "User not found"}), 404
-        
-        cart = session.query(Cart).filter_by(user_id=user_id).first()
-        if not cart:
-            return jsonify({"message": "Cart not found"}), 404
-        
-        cart_items = session.query(CartItem).filter_by(cart_id=cart.id).all()
-        items = []
-        for item in cart_items:
-            product = session.query(Products).filter_by(product_id=item.id).first()
-            items.append({
-                "product_id": item.id,
-                "product_name": product.name,
-                "quantity": item.quantity,
-                "price": product.price,
-                "total_price": item.quantity * product.price
-            })
-
-        return jsonify({"cart_items": items}), 200
-    
-    except SQLAlchemyError as e:
-        session.rollback()
-        print(f"Error: {str(e)}")
-        return jsonify({"message": "Failed to retrieve cart items", "error": str(e)}), 500
-    finally:
-        session.close()
 
 @cart_routes.route('/cart/add', methods=['POST'])
 @jwt_required()
@@ -93,7 +58,19 @@ def add_product_to_cart():
         if cart_item:
             cart_item.quantity += quantity
         else:
-            cart_item = CartItem(cart_id=cart.id, product_id=product_id, quantity=quantity)
+            # Fetch the product to get the price
+            product = session.query(Products).filter_by(id=product_id).first()
+            if not product:
+                return jsonify({"message": "Product not found"}), 404
+
+            cart_item = CartItem(
+                cart_id=cart.id,
+                product_id=product_id,
+                quantity=quantity,
+                price=product.price,  
+                user_id=current_user_id
+
+            )
             session.add(cart_item)
 
         session.commit()
@@ -107,37 +84,53 @@ def add_product_to_cart():
 
     finally:
         session.close()
-
 @cart_routes.route('/cart', methods=['GET'])
-# @login_required
+@jwt_required()
 def view_cart():
     Session = sessionmaker(bind=engine)
     session = Session()
 
     try:
-        # Ensure the user has a cart
-        cart = session.query(Cart).filter_by(user_id=current_user.id).first()
-        if not cart:
-            return jsonify({"message": "Cart is empty"}), 200
+        # Get the user ID from the JWT
+        user_id = get_jwt_identity()
 
-        # Fetch all items in the cart
+        # Ensure the user exists
+        user = session.query(User).filter_by(id=user_id).first()
+        if not user:
+            return jsonify({"message": "User not found"}), 404
+
+        # Retrieve the user's cart
+        cart = session.query(Cart).filter_by(user_id=user_id).first()
+        if not cart:
+            return jsonify({"cart_items": []}), 200  # Empty cart response
+
+        # Retrieve items in the cart
         cart_items = session.query(CartItem).filter_by(cart_id=cart.id).all()
         items = []
-        for item in cart_items:
-            product = session.query(Products).filter_by(product_id=item.product_id).first()
-            items.append({
-                "product_id": item.product_id,
-                "product_name": product.name,
-                "quantity": item.quantity,
-                "price": product.price,
-                "total_price": item.quantity * product.price
-            })
 
+        # Loop through each cart item and get the related product information
+        for item in cart_items:
+            product = session.query(Products).filter_by(id=item.product_id).first()
+            if product:
+                items.append({
+                    "id": item.id,
+                    "product_id": item.product_id,
+                    "product_name": product.name,
+                    "quantity": item.quantity,
+                    "price": product.price,
+                    "total_price": item.quantity * product.price,
+                    "image_url": product.image_url
+                })
+            else:
+                # If a product related to the cart item is not found
+                return jsonify({"message": f"Product with id {item.product_id} not found"}), 404
+
+        session.commit()
         return jsonify({"cart_items": items}), 200
 
     except SQLAlchemyError as e:
         session.rollback()
-        print(f"Error: {str(e)}")
+        print(f"Querying product with id: {item.product_id}")
         return jsonify({"message": "Failed to retrieve cart items", "error": str(e)}), 500
     finally:
         session.close()
@@ -204,40 +197,6 @@ def remove_cart_item(product_id):
     finally:
         session.close()
 
-@cart_routes.route('/cart/checkout', methods=['POST'])
-@login_required
-def checkout_cart():
-    Session = sessionmaker(bind=engine)
-    session = Session()
-
-    try:
-        # Ensure the user has a cart
-        cart = session.query(Cart).filter_by(user_id=current_user.id).first()
-        if not cart:
-            return jsonify({"message": "Cart is empty"}), 200
-
-        # Fetch all items in the cart
-        cart_items = session.query(CartItem).filter_by(cart_id=cart.id).all()
-        items = []
-        for item in cart_items:
-            product = session.query(Products).filter_by(product_id=item.id).first()
-            items.append({
-                "product_id": item.id,
-                "product_name": product.name,
-                "quantity": item.quantity,
-                "price": product.price,
-                "total_price": item.quantity * product.price
-            })
-
-        return jsonify({"cart_items": items}), 200
-
-    except SQLAlchemyError as e:    
-        session.rollback()
-        print(f"Error: {str(e)}")
-        return jsonify({"message": "Failed to checkout cart", "error": str(e)}), 500
-    finally:
-        session.close()
-
 @cart_routes.route('/cart/clear', methods=['DELETE'])
 @jwt_required()
 def clear_cart():
@@ -263,30 +222,159 @@ def clear_cart():
         session.close()
 
 @cart_routes.route('/cart/total', methods=['GET'])
-@login_required
+@jwt_required()
 def get_cart_total():
     Session = sessionmaker(bind=engine)
     session = Session()
 
     try:
-        # Ensure the user has a cart
-        cart = session.query(Cart).filter_by(user_id=current_user.id).first()
+        # Get the user ID from the JWT
+        user_id = get_jwt_identity()
+
+        # Ensure the user exists
+        user = session.query(User).filter_by(id=user_id).first()
+        if not user:
+            return jsonify({"message": "User not found"}), 404
+
+        # Retrieve the user's cart
+        cart = session.query(Cart).filter_by(user_id=user_id).first()
         if not cart:
-            return jsonify({"message": "Cart is empty"}), 200
+            return jsonify({"total_price": 0}), 200  # Empty cart response
 
-        # Fetch all items in the cart
+        # Retrieve items in the cart and calculate the total price
         cart_items = session.query(CartItem).filter_by(cart_id=cart.id).all()
-        total = 0
-        for item in cart_items:
-            total += item.quantity * item.product.price
+        total_price = 0
 
-        return jsonify({"total": total}), 200
+        for item in cart_items:
+            product = session.query(Products).filter_by(id=item.product_id).first()
+            if product:
+                total_price += item.quantity * product.price
+            else:
+                # If a product related to the cart item is not found
+                return jsonify({"message": f"Product with id {item.product_id} not found"}), 404
+
+        session.commit()
+        return jsonify({"total_price": total_price}), 200
 
     except SQLAlchemyError as e:
         session.rollback()
-        print(f"Error: {str(e)}")
-        return jsonify({"message": "Failed to get cart total", "error": str(e)}), 500
+        return jsonify({"message": "Failed to retrieve cart total", "error": str(e)}), 500
     finally:
         session.close()
 
-        
+@cart_routes.route('/cart/checkout', methods=['POST'])
+@jwt_required()
+def checkout_cart():
+    Session = sessionmaker(bind=engine)
+    session = Session()
+
+    try:
+        # Get the user ID from the JWT
+        user_id = get_jwt_identity()
+
+        # Ensure the user exists
+        user = session.query(User).filter_by(id=user_id).first()
+        if not user:
+            return jsonify({"message": "User not found"}), 404
+
+        # Retrieve the user's cart
+        cart = session.query(Cart).filter_by(user_id=user_id).first()
+        if not cart:
+            return jsonify({"message": "Cart is empty"}), 400
+
+        # Retrieve items in the cart and calculate the total price
+        cart_items = session.query(CartItem).filter_by(cart_id=cart.id).all()
+        if not cart_items:
+            return jsonify({"message": "Cart is empty"}), 400
+
+        total_price = 0
+        order_items = []
+
+        for item in cart_items:
+            product = session.query(Products).filter_by(id=item.product_id).first()
+            if product:
+                total_price += item.quantity * product.price
+                order_items.append({
+                    "product_id": product.id,
+                    "quantity": item.quantity,
+                    "price": product.price
+                })
+            else:
+                return jsonify({"message": f"Product with id {item.product_id} not found"}), 404
+
+        # Get payment method from request body
+        data = request.get_json()
+        if not data or 'payment_method' not in data:
+            return jsonify({"message": "Payment method is required"}), 400
+
+        payment_method = data.get('payment_method')
+
+        # Validate payment method
+        if payment_method not in ['bank_transfer', 'COD']:
+            return jsonify({"message": "Invalid payment method"}), 400
+
+        # Create an order
+        order = Order(user_id=user_id, total_price=total_price, payment_method=payment_method)
+        session.add(order)
+        session.commit()
+
+        # Add order items
+        for order_item in order_items:
+            new_order_item = OrderItem(
+                order_id=order.id,
+                product_id=order_item["product_id"],
+                quantity=order_item["quantity"],
+                price=order_item["price"]
+            )
+            session.add(new_order_item)
+
+        # Clear the user's cart
+        session.query(CartItem).filter_by(cart_id=cart.id).delete()
+        session.commit()
+
+        return jsonify({"message": "Checkout successful", "order_id": order.id, "total_price": total_price, "payment_method": payment_method}), 200
+
+    except SQLAlchemyError as e:
+        session.rollback()
+        return jsonify({"message": "Failed to checkout", "error": str(e)}), 500
+    finally:
+        session.close()
+    
+@cart_routes.route('/order/<int:order_id>/feedback', methods=['POST'])
+@jwt_required()
+def leave_feedback(order_id):
+    Session = sessionmaker(bind=engine)
+    session = Session()
+
+    try:
+        # Get the user ID from the JWT
+        user_id = get_jwt_identity()
+
+        # Ensure the order exists and belongs to the user
+        order = session.query(Order).filter_by(id=order_id, user_id=user_id).first()
+        if not order:
+            return jsonify({"message": "Order not found or does not belong to the user"}), 404
+
+        # Get feedback from request body
+        data = request.get_json()
+        if not data or 'comment' not in data or 'rating' not in data:  # Check for rating
+            return jsonify({"message": "Comment and rating are required"}), 400
+
+        comment_text = data.get('comment')
+        rating_value = data.get('rating')
+
+        if rating_value is None:
+            return jsonify({"message": "Rating cannot be null"}), 400
+
+        # Create feedback entry
+        feedback = Feedback(order_id=order_id, user_id=user_id, rating=rating_value, comment=comment_text)
+        session.add(feedback)
+        session.commit()
+
+        return jsonify({"message": "Feedback submitted successfully"}), 200
+
+    except SQLAlchemyError as e:
+        session.rollback()
+        return jsonify({"message": "Failed to submit feedback", "error": str(e)}), 500
+    finally:
+        session.close()

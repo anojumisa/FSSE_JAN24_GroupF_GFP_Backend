@@ -25,7 +25,9 @@ class User(Base, UserMixin):
     updated_at = mapped_column(DateTime(timezone=True), server_default=func.now(), onupdate=func.current_timestamp())
 
     carts = relationship('Cart', back_populates='user', lazy=True)
+    # cart_items = relationship('CartItem', back_populates='user', lazy=True)
     orders = relationship('Order', back_populates='user')
+    feedback = relationship('Feedback', back_populates='user')
 
     def set_password(self, password):
         self.password = bcrypt.hashpw(password.encode('utf-8'), bcrypt.gensalt()).decode('utf-8')
