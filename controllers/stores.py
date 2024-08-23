@@ -244,26 +244,6 @@ def get_product(id):
     except Exception as e:
         print(e)
         return { 'message': 'Unexpected Error' }, 500
-      
-# @store_routes.route('/products', methods=['GET'])
-# @jwt_required()
-# def get_products():
-#     Session = sessionmaker(bind=engine)
-#     s = Session()
-#     s.begin()
-
-#     try:
-#         store = get_jwt_identity()
-#         products = s.query(Products).filter(Products.store_id == store).all()        
-#         products_list = [{"id": p.id, "name": p.name, "price": p.price} for p in products]
-
-#         return {
-#             'products': products_list,
-#         }, 200
-
-#     except Exception as e:
-#         print(e)
-#         return { 'message': 'Unexpected Error' }, 500
     
 @store_routes.route('/store/products_overview', methods=['GET'])
 @jwt_required()
